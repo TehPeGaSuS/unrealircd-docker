@@ -95,3 +95,20 @@ docker compose build
 - Runs as a non-root user (`unrealircd`).
 - Uses `tini` as PID 1 for correct signal handling and zombie reaping.
 - The `-F` flag keeps UnrealIRCd in the foreground as required by Docker.
+
+## Networking
+
+This image uses `network_mode: host` by default. This is intentional and important.
+
+Without host networking, Docker routes all incoming connections through its internal bridge network, which means UnrealIRCd sees every user connecting from the Docker gateway IP (typically `172.17.0.1`) instead of their real IP address. This breaks:
+
+- IP-based bans and K-Lines
+- Cloaking (all users get the same cloak)
+- Throttling and connection limits per host
+- Geolocation and reputation tracking
+
+With `network_mode: host`, the container shares the host's network stack directly, so UnrealIRCd sees real client IPs as if it were running natively. The tradeoff is that Docker's network isolation is bypassed, but for a public-facing IRC server this is the correct tradeoff.
+
+Since ports are exposed directly from the host with host networking, the `ports:` section is not needed — configure your listeners directly in `unrealircd.conf`.
+
+> **Note:** `network_mode: host` only works on Linux. On Docker Desktop (macOS/Windows) you will need to use `ports:` mapping instead and accept that client IPs will not be accurate.

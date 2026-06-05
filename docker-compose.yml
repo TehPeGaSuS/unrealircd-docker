@@ -6,9 +6,14 @@ services:
     container_name: unrealircd
     restart: unless-stopped
 
-    ports:
-      - "6667:6667"
-      - "6697:6697"
+    # host networking is required so UnrealIRCd sees real client IPs.
+    # Without it, all connections appear to come from the Docker gateway
+    # (e.g. 172.17.0.1), which breaks IP bans, cloaking, throttling,
+    # geolocation and anything else that relies on knowing where a user
+    # is actually connecting from.
+    # With host networking, ports are exposed directly from the host —
+    # remove the ports: section and configure listeners in unrealircd.conf.
+    network_mode: host
 
     volumes:
       - ./conf:/opt/unrealircd/conf
