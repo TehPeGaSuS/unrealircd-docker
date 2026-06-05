@@ -7,6 +7,9 @@ FROM debian:12-slim AS builder
 
 ARG BRANCH=unreal60_dev
 ARG BASEPATH=/opt/unrealircd
+# Space-separated list of third-party modules to install at build time.
+# e.g. ARG MODULES="third/ojoin third/somethingelse"
+ARG MODULES="third/ojoin"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -59,6 +62,14 @@ RUN ./Config -quick \
   && make -j$(nproc) \
   && make install
 
+# Install third-party modules while source is still present
+RUN if [ -n "${MODULES}" ]; then \
+      for mod in ${MODULES}; do \
+        echo "Installing module: $mod"; \
+        ${BASEPATH}/bin/unrealircd module install "$mod"; \
+      done; \
+    fi
+
 # Stage 2: runtime
 FROM debian:12-slim
 
@@ -78,9 +89,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     gosu \
     netcat-openbsd \
+    # Required by the UnrealIRCd module manager for runtime installs
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libpcre2-dev \
+    libargon2-0-dev \
+    libsodium-dev \
+    libc-ares-dev \
+    libcurl4-openssl-dev \
+    libjansson-dev \
+    git \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder ${BASEPATH} ${BASEPATH}
+# Keep source tree so the module manager can compile against it at runtime
 COPY --from=builder /build/src /build/src
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
