@@ -101,7 +101,7 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # Save defaults before VOLUME wipes the layer, then fix ownership
 RUN useradd -r -d ${BASEPATH} -s /sbin/nologin unrealircd \
   && cp -r ${BASEPATH}/conf ${BASEPATH}/conf.defaults \
-  && chown -R unrealircd:unrealircd ${BASEPATH} \
+  && chown -R unrealircd:unrealircd ${BASEPATH} /build/src \
   && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["${BASEPATH}/conf", "${BASEPATH}/data", "${BASEPATH}/logs"]
