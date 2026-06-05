@@ -49,12 +49,12 @@ CURLDIR=""
 NOOPEROVERRIDE=""
 OPEROVERRIDEVERIFY=""
 GENCERTIFICATE="0"
-EXTRAPARA=""
+EXTRAPARA="-march=x86-64"
 ADVANCED=""
 SETTINGS
 
 RUN ./Config -quick \
-  && make -j$(nproc) XCFLAGS="-march=x86-64" \
+  && make -j$(nproc) \
   && make install
 
 # Stage 2: runtime
