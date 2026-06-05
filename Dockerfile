@@ -54,7 +54,7 @@ ADVANCED=""
 SETTINGS
 
 RUN ./Config -quick \
-  && make -j$(nproc) \
+  && make -j$(nproc) CFLAGS="-O2 -march=x86-64" \
   && make install
 
 # Stage 2: runtime
