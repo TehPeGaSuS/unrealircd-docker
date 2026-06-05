@@ -81,6 +81,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder ${BASEPATH} ${BASEPATH}
+COPY --from=builder /build/src /build/src
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Save defaults before VOLUME wipes the layer, then fix ownership
