@@ -7,9 +7,6 @@ FROM debian:12-slim AS builder
 
 ARG BRANCH=unreal60_dev
 ARG BASEPATH=/opt/unrealircd
-# Space-separated list of third-party modules to install at build time.
-# e.g. ARG MODULES="third/ojoin third/somethingelse"
-ARG MODULES="third/ojoin"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -62,14 +59,6 @@ RUN ./Config -quick \
   && make -j$(nproc) \
   && make install
 
-# Install third-party modules while source is still present
-RUN if [ -n "${MODULES}" ]; then \
-      for mod in ${MODULES}; do \
-        echo "Installing module: $mod"; \
-        ${BASEPATH}/bin/unrealircd module install "$mod"; \
-      done; \
-    fi
-
 # Stage 2: runtime
 FROM debian:12-slim
 
@@ -89,7 +78,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     gosu \
     netcat-openbsd \
-    # Required by the UnrealIRCd module manager for runtime installs
+    # Required for 'unrealircd module install' at runtime
     build-essential \
     pkg-config \
     libssl-dev \
@@ -100,10 +89,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     libjansson-dev \
     git \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  # The module manager requires 'gmake' by name; Debian only ships 'make'
+  && ln -sf /usr/bin/make /usr/local/bin/gmake
 
 COPY --from=builder ${BASEPATH} ${BASEPATH}
-# Keep source tree so the module manager can compile against it at runtime
+# Source tree is required by the module manager to compile modules
 COPY --from=builder /build/src /build/src
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
