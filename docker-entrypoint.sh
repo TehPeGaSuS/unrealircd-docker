@@ -3,7 +3,7 @@ set -e
 
 BASEPATH=/opt/unrealircd
 TLSDIR=$BASEPATH/conf/tls
-MODULES_LIST=$BASEPATH/data/modules.list
+MODULES_LIST=$BASEPATH/modules.txt
 
 # Fix ownership of mounted volumes in case host dirs are owned by root
 chown -R unrealircd:unrealircd \
@@ -48,25 +48,17 @@ if [ ! -f "$TLSDIR/server.cert.pem" ]; then
     echo "Replace with a real certificate when you have one."
 fi
 
-# Reinstall any third-party modules that are missing.
-#
-# modules.list lives in the data volume so it survives image updates.
-# Each line is a module name, e.g. third/ojoin
-# Add modules to this file manually, or it is updated automatically
-# when you run: unrealircd module install <name>
-#
-# On every start we check each listed module and reinstall it if the
-# compiled .so is absent (e.g. after pulling a new image).
+# Install any third-party modules listed in modules.txt.
+# Edit modules.txt in your project directory to add/remove modules.
+# On each start, any listed module that is not compiled will be installed.
 if [ -f "$MODULES_LIST" ]; then
     while IFS= read -r mod || [ -n "$mod" ]; do
-        # skip empty lines and comments
         case "$mod" in
             ''|\#*) continue ;;
         esac
-        # derive the .so filename: third/ojoin -> third/ojoin.so
         SO="$BASEPATH/modules/${mod}.so"
         if [ ! -f "$SO" ]; then
-            echo "Reinstalling missing module: $mod"
+            echo "Installing missing module: $mod"
             gosu unrealircd $BASEPATH/unrealircd module install "$mod" || \
                 echo "WARNING: Failed to install module $mod"
         fi
