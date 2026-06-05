@@ -49,9 +49,11 @@ CURLDIR=""
 NOOPEROVERRIDE=""
 OPEROVERRIDEVERIFY=""
 GENCERTIFICATE="0"
-EXTRAPARA="-march=x86-64"
+EXTRAPARA=""
 ADVANCED=""
 SETTINGS
+
+ENV CFLAGS="-O2 -march=x86-64"
 
 RUN ./Config -quick \
   && make -j$(nproc) \
