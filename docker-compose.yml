@@ -1,0 +1,28 @@
+services:
+  unrealircd:
+    image: ghcr.io/tehpegasus/unrealircd-docker:latest
+    # Or build locally:
+    # build: .
+    container_name: unrealircd
+    restart: unless-stopped
+
+    ports:
+      - "6667:6667"
+      - "6697:6697"
+
+    volumes:
+      - ./conf:/opt/unrealircd/conf
+      - ./data:/opt/unrealircd/data
+      - ./logs:/opt/unrealircd/logs
+
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
+    healthcheck:
+      test: ["CMD-SHELL", "echo -e 'QUIT\\r' | nc -w 3 127.0.0.1 6667 | grep -qi 'irc\\|ERROR'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
