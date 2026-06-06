@@ -58,12 +58,18 @@ Configured via `network_mode: host` — see [Networking](#networking) below. Def
 
 ## Third-party modules
 
-Third-party modules are tracked in `conf/modules.txt`. On each startup the entrypoint will:
+Third-party modules are tracked in `modules.txt`. On each startup it will:
 
-1. Scan `modules/third/` for any installed `.so` files and automatically record them into `conf/modules.txt`
-2. Install any modules listed in `conf/modules.txt` that are not yet compiled
+1. Scan `modules/third/` for any installed `.so` files and automatically check against `modules.txt`
+2. Install any modules listed in `modules.txt` that are not yet compiled
 
-This means you never need to edit `modules.txt` manually just to install a module — install it once and it gets tracked automatically. The only reason to edit `modules.txt` is to **remove** a module.
+This means you need to edit `modules.txt` manually to add or remove a module that you want to install/remove, one module per line like:
+```
+# Add the third party modules that you'd  like to keep on your server, so they
+# are recompiled every time the image is updated. One module per line.
+third/ojoin
+third/clearlist
+```
 
 ### Installing a module
 
@@ -73,13 +79,12 @@ docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module i
 
 The `-u unrealircd` flag is required — UnrealIRCd refuses to run as root.
 
-On next restart, the module is automatically recorded in `conf/modules.txt` and will survive image updates.
+On next restart, the module is automatically checked if it exists on `modules.txt` and will be recompiled.
 
 ### Removing a module
 
-1. Delete its line from `conf/modules.txt`
-2. Delete the `.so` from `modules/third/`
-3. Restart the container
+1. Delete its line from `modules.txt`
+2. Restart the container
 
 ## Common commands
 
