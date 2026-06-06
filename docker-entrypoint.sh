@@ -11,6 +11,11 @@ chown -R unrealircd:unrealircd \
     $BASEPATH/data \
     $BASEPATH/logs
 
+# Ensure modules.txt exists as a file — Docker will create it as a directory
+# if it doesn't exist when the container starts, which breaks everything.
+touch "$MODULES_LIST"
+chown unrealircd:unrealircd "$MODULES_LIST"
+
 # Seed conf/ from defaults if unrealircd.conf is missing
 if [ ! -f "$BASEPATH/conf/unrealircd.conf" ]; then
     echo "No unrealircd.conf found, seeding default configuration..."
