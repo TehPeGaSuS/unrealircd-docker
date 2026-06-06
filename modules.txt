@@ -1,5 +1,2 @@
 # Add the third party modules that you'd  like to keep on your server, so they
-# are recompiled every time the image is updated. One module per line:
-# Example (this would build the ojoin and clearlist third party modules):
-# third/ojoin
-# third/clearlist
+# are recompiled every time the image is updated. One module per line.
