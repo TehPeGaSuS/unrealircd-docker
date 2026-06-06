@@ -4,8 +4,8 @@ on:
   push:
     branches: ["main"]
   schedule:
-    # Rebuild weekly on Monday at 04:00 UTC to pick up upstream changes
-    - cron: "0 4 * * 1"
+    # Check daily at 04:00 UTC for upstream commits
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 env:
@@ -13,8 +13,39 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+
+    steps:
+      - name: Check for upstream commits in the last 24h
+        id: check
+        run: |
+          # On push or manual trigger, always build
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
+          COUNT=$(curl -s \
+            "https://api.github.com/repos/unrealircd/unrealircd/commits?sha=unreal60_dev&since=${SINCE}&per_page=1" \
+            -H "Accept: application/vnd.github+json" \
+            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+
+          if [ "$COUNT" -gt "0" ]; then
+            echo "Upstream has new commits — triggering build"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "No upstream commits in the last 24h — skipping build"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
+
   build-and-push:
     runs-on: ubuntu-latest
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
     permissions:
       contents: read
       packages: write
