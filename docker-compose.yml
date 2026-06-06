@@ -19,7 +19,7 @@ services:
       - ./conf:/opt/unrealircd/conf
       - ./data:/opt/unrealircd/data
       - ./logs:/opt/unrealircd/logs
-      - ./modules.txt:/opt/unrealircd/modules.txt:ro
+      - ./modules:/opt/unrealircd/modules/third
 
     ulimits:
       nofile:

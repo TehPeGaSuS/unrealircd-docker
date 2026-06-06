@@ -4,6 +4,7 @@ set -e
 BASEPATH=/opt/unrealircd
 TLSDIR=$BASEPATH/conf/tls
 MODULES_LIST=$BASEPATH/conf/modules.txt
+VERSION_FILE=$BASEPATH/data/.image_version
 
 # Fix ownership of mounted volumes in case host dirs are owned by root
 chown -R unrealircd:unrealircd \
@@ -51,6 +52,20 @@ if [ ! -f "$TLSDIR/server.cert.pem" ]; then
     chown -R unrealircd:unrealircd "$TLSDIR"
     echo "TLS certificate generated in $TLSDIR"
     echo "Replace with a real certificate when you have one."
+fi
+
+# Detect image updates by comparing the build timestamp baked into the binary.
+# UNREAL_VERSION_TIME changes on every build so this catches any image update,
+# not just version bumps — important for unreal60_dev which stays at the same
+# version number across many builds.
+CURRENT_VERSION=$(grep -r "define UNREAL_VERSION_TIME" /build/src/include/version.h 2>/dev/null | awk '{print $3}')
+STORED_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "")
+
+if [ -n "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$STORED_VERSION" ]; then
+    echo "Image updated (build $CURRENT_VERSION), recompiling all third-party modules..."
+    rm -f $BASEPATH/modules/third/*.so 2>/dev/null || true
+    echo "$CURRENT_VERSION" > "$VERSION_FILE"
+    chown unrealircd:unrealircd "$VERSION_FILE"
 fi
 
 # Auto-record any third-party modules already installed into modules.txt.
