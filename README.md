@@ -46,7 +46,7 @@ The minimum you need to do before `docker compose up -d` is edit `conf/unrealirc
 
 | Path | Purpose |
 |------|---------|
-| `/opt/unrealircd/conf` | Configuration files and TLS certificates |
+| `/opt/unrealircd/conf` | Configuration files, TLS certificates, and modules list |
 | `/opt/unrealircd/data` | Runtime data |
 | `/opt/unrealircd/logs` | Log files |
 
@@ -54,47 +54,53 @@ Mount all three from the host so they survive image updates.
 
 ## Ports
 
-| Port | Purpose |
-|------|---------|
-| `6667` | Plain IRC (consider disabling if TLS-only) |
-| `6697` | TLS IRC |
+Configured via `network_mode: host` — see [Networking](#networking) below. Define your listeners directly in `unrealircd.conf`.
 
-Add any additional ports your config uses to `docker-compose.yml`.
+## Third-party modules
+
+Third-party modules are tracked in `conf/modules.txt`. On each startup the entrypoint will:
+
+1. Scan `modules/third/` for any installed `.so` files and automatically record them into `conf/modules.txt`
+2. Install any modules listed in `conf/modules.txt` that are not yet compiled
+
+This means you never need to edit `modules.txt` manually just to install a module — install it once and it gets tracked automatically. The only reason to edit `modules.txt` is to **remove** a module.
+
+### Installing a module
+
+```bash
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module install third/ojoin
+```
+
+The `-u unrealircd` flag is required — UnrealIRCd refuses to run as root.
+
+On next restart, the module is automatically recorded in `conf/modules.txt` and will survive image updates.
+
+### Removing a module
+
+1. Delete its line from `conf/modules.txt`
+2. Delete the `.so` from `modules/third/`
+3. Restart the container
 
 ## Common commands
 
+All commands require `-u unrealircd` when using `docker compose exec`.
+
 ```bash
 # Test configuration
-docker compose exec unrealircd /opt/unrealircd/unrealircd configtest
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd configtest
 
 # Rehash (reload config)
-docker compose exec unrealircd /opt/unrealircd/unrealircd rehash
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd rehash
 
 # Reload TLS certificates
-docker compose exec unrealircd /opt/unrealircd/unrealircd reloadtls
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd reloadtls
 
 # Install a third-party module
-docker compose exec unrealircd /opt/unrealircd/unrealircd module install third/somemodule
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module install third/ojoin
 
 # Generate cloak keys
 docker compose run --rm unrealircd /opt/unrealircd/unrealircd gencloak
 ```
-
-## Building locally
-
-```bash
-git clone https://github.com/TehPeGaSuS/unrealircd-docker
-cd unrealircd-docker
-docker compose build
-```
-
-## Notes
-
-- Tracks `unreal60_dev` which is a development branch — not a stable release.
-- Builds for `linux/amd64` and `linux/arm64`.
-- Runs as a non-root user (`unrealircd`).
-- Uses `tini` as PID 1 for correct signal handling and zombie reaping.
-- The `-F` flag keeps UnrealIRCd in the foreground as required by Docker.
 
 ## Networking
 
@@ -112,3 +118,19 @@ With `network_mode: host`, the container shares the host's network stack directl
 Since ports are exposed directly from the host with host networking, the `ports:` section is not needed — configure your listeners directly in `unrealircd.conf`.
 
 > **Note:** `network_mode: host` only works on Linux. On Docker Desktop (macOS/Windows) you will need to use `ports:` mapping instead and accept that client IPs will not be accurate.
+
+## Building locally
+
+```bash
+git clone https://github.com/TehPeGaSuS/unrealircd-docker
+cd unrealircd-docker
+docker compose build
+```
+
+## Notes
+
+- Tracks `unreal60_dev` which is a development branch — not a stable release.
+- Builds for `linux/amd64`.
+- Runs as a non-root user (`unrealircd`).
+- Uses `tini` as PID 1 for correct signal handling and zombie reaping.
+- The `-F` flag keeps UnrealIRCd in the foreground as required by Docker.

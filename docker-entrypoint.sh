@@ -3,7 +3,7 @@ set -e
 
 BASEPATH=/opt/unrealircd
 TLSDIR=$BASEPATH/conf/tls
-MODULES_LIST=$BASEPATH/modules.txt
+MODULES_LIST=$BASEPATH/conf/modules.txt
 
 # Fix ownership of mounted volumes in case host dirs are owned by root
 chown -R unrealircd:unrealircd \
@@ -48,15 +48,31 @@ if [ ! -f "$TLSDIR/server.cert.pem" ]; then
     echo "Replace with a real certificate when you have one."
 fi
 
-# Install any third-party modules listed in modules.txt.
-# Edit modules.txt in your project directory to add/remove modules.
-# On each start, any listed module that is not compiled will be installed.
+# Auto-record any third-party modules already installed into modules.txt.
+# This means modules installed manually via 'docker compose exec' are
+# automatically tracked and will survive image updates without the user
+# having to edit modules.txt manually.
+if [ -d "$BASEPATH/modules/third" ]; then
+    for so in $BASEPATH/modules/third/*.so; do
+        [ -f "$so" ] || continue
+        mod="third/$(basename "$so" .so)"
+        if ! grep -qxF "$mod" "$MODULES_LIST" 2>/dev/null; then
+            echo "$mod" >> "$MODULES_LIST"
+            echo "Recorded new module: $mod"
+        fi
+    done
+fi
+
+# Install any third-party modules listed in conf/modules.txt that are
+# not yet compiled. To remove a module, delete its line from modules.txt
+# and remove the .so from modules/third/ then restart.
 if [ -f "$MODULES_LIST" ]; then
     while IFS= read -r mod || [ -n "$mod" ]; do
         case "$mod" in
             ''|\#*) continue ;;
         esac
-        SO="$BASEPATH/modules/${mod}.so"
+        so_name=$(basename "$mod")
+        SO="$BASEPATH/modules/third/${so_name}.so"
         if [ ! -f "$SO" ]; then
             echo "Installing missing module: $mod"
             gosu unrealircd $BASEPATH/unrealircd module install "$mod" || \
