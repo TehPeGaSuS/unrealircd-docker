@@ -69,6 +69,55 @@ The compose file uses `network_mode: host`, so there is no `ports:` section:
 every `listen` block in `unrealircd.conf` is live on the host's addresses,
 exactly as with a native install.
 
+## Third-party modules
+
+Compiled modules live inside the image, so they vanish when you pull a new
+one. `conf/modules.txt` is the list of third-party modules the container
+installs on every start when they are missing, one per line (`#` starts a
+comment):
+
+```
+third/ojoin
+third/clearlist
+```
+
+### Installing a module
+
+```bash
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module install third/ojoin
+```
+
+The `-u unrealircd` flag is required — UnrealIRCd refuses to run as root.
+
+Then add the module to `conf/modules.txt` so it comes back after an image
+update, and load it from `unrealircd.conf` as usual.
+
+### Removing a module
+
+1. Remove its `loadmodule` line from `unrealircd.conf` and its line from `conf/modules.txt`
+2. Restart the container, or pull a new image: anything not listed is not reinstalled
+
+## Common commands
+
+All commands require `-u unrealircd` when using `docker compose exec`.
+
+```bash
+# Test configuration
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd configtest
+
+# Rehash (reload config)
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd rehash
+
+# Reload TLS certificates
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd reloadtls
+
+# Install a third-party module
+docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module install third/ojoin
+
+# Generate cloak keys
+docker compose run --rm unrealircd /opt/unrealircd/unrealircd gencloak
+```
+
 ## Networking
 
 ### Host networking (default)
