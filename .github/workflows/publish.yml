@@ -11,35 +11,43 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  BRANCH: unreal60_dev
 
 jobs:
   check-upstream:
     runs-on: ubuntu-latest
     outputs:
       should_build: ${{ steps.check.outputs.should_build }}
+      upstream_sha: ${{ steps.check.outputs.upstream_sha }}
+      upstream_short: ${{ steps.check.outputs.upstream_short }}
 
     steps:
-      - name: Check for upstream commits in the last 24h
+      - name: Look up the upstream tip and decide whether to build
         id: check
         run: |
+          # Current tip of the tracked branch. It is passed to the build as
+          # UPSTREAM_SHA so the clone layer is not served from cache, and it
+          # becomes the image tag.
+          SHA=$(curl -sf -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/unrealircd/unrealircd/commits/${BRANCH}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+          echo "upstream_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "upstream_short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Upstream ${BRANCH} is at $SHA"
+
           # On push or manual trigger, always build
           if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
-          COUNT=$(curl -s \
-            "https://api.github.com/repos/unrealircd/unrealircd/commits?sha=unreal60_dev&since=${SINCE}&per_page=1" \
-            -H "Accept: application/vnd.github+json" \
-            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
-
-          if [ "$COUNT" -gt "0" ]; then
-            echo "Upstream has new commits — triggering build"
-            echo "should_build=true" >> $GITHUB_OUTPUT
+          # On schedule, build only if that commit is not published yet.
+          if docker manifest inspect "${REGISTRY}/${IMAGE_NAME}:${SHA:0:7}" >/dev/null 2>&1; then
+            echo "Image for $SHA already published — skipping build"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
-            echo "No upstream commits in the last 24h — skipping build"
-            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "No image for $SHA yet — triggering build"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
           fi
 
   build-and-push:
@@ -53,9 +61,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU (for multi-platform builds)
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -74,9 +79,12 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=raw,value=unreal60_dev
-            type=schedule,pattern={{date 'YYYYMMDD'}}
-            type=sha,prefix=,format=short
+            type=raw,value=${{ env.BRANCH }}
+            type=raw,value={{date 'YYYYMMDD'}}
+            type=raw,value=${{ needs.check-upstream.outputs.upstream_short }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.check-upstream.outputs.upstream_sha }}
+            org.opencontainers.image.source=https://github.com/unrealircd/unrealircd
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -84,6 +92,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          build-args: |
+            BRANCH=${{ env.BRANCH }}
+            UPSTREAM_SHA=${{ needs.check-upstream.outputs.upstream_sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,annotation-index.org.opencontainers.image.description=Docker image for UnrealIRCd tracking the unreal60_dev branch

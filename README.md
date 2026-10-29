@@ -17,21 +17,27 @@ docker pull ghcr.io/tehpegasus/unrealircd-docker:latest
 # Create directories for persistent data
 mkdir -p conf data logs
 
-# Start once — seeds conf/, prints cloak keys, generates TLS cert
+# First run: seeds conf/, generates a TLS cert, prints cloak keys and exits
 docker compose run --rm unrealircd
 
-# Edit ./conf/unrealircd.conf with your cloak keys and other settings
+# Edit ./conf/unrealircd.conf with your cloak keys and other settings,
 # then start for real
 docker compose up -d
 ```
 
-On first run the following happens automatically:
-- `conf/` is seeded with the full default configuration and `example.conf` is copied to `unrealircd.conf`
-- Your cloak keys are printed to the console — copy them into `unrealircd.conf`
-- A self-signed TLS certificate is generated into `conf/tls/`
-- The CA bundle is copied into `conf/tls/curl-ca-bundle.crt`
+When no `conf/unrealircd.conf` exists yet the container:
+- seeds `conf/` with the full default configuration and copies `example.conf` to `unrealircd.conf`
+- creates an empty `conf/modules.txt` (see [Third-party modules](#third-party-modules))
+- copies the CA bundle to `conf/tls/curl-ca-bundle.crt` and generates a self-signed certificate in `conf/tls/`
+- prints your cloak keys and **exits** instead of starting, because the example config cannot run as-is
 
-The minimum you need to do before `docker compose up -d` is edit `conf/unrealircd.conf` and set your server name, network name, admin info, and cloak keys.
+The minimum you need to do before `docker compose up -d` is edit `conf/unrealircd.conf` and set your server name, network name, admin info, listeners and cloak keys.
+
+> [!IMPORTANT]
+> Cloak keys must be identical on every server of a network, otherwise users
+> get a different cloaked host depending on which server they connect to and
+> bans stop matching. If this server will link to an existing network, copy
+> the network's keys instead of using the generated ones.
 
 ## Tags
 
@@ -39,8 +45,13 @@ The minimum you need to do before `docker compose up -d` is edit `conf/unrealirc
 |-----|-------------|
 | `latest` | Latest build from `unreal60_dev` |
 | `unreal60_dev` | Same as latest |
-| `YYYYMMDD` | Weekly dated snapshot |
-| `<sha>` | Specific build by git short SHA |
+| `YYYYMMDD` | Build date |
+| `<sha>` | Short SHA of the **UnrealIRCd** commit the image was built from |
+
+The workflow checks the upstream branch daily and builds only when its tip has
+no published image yet, so a `<sha>` tag always identifies the exact UnrealIRCd
+code inside. The container logs that commit on every start, and it is also in
+the `org.opencontainers.image.revision` label.
 
 ## Volumes
 
@@ -58,15 +69,12 @@ Configured via `network_mode: host` — see [Networking](#networking) below. Def
 
 ## Third-party modules
 
-Third-party modules are tracked in `modules.txt`. On each startup it will:
+Compiled modules live inside the image, so they vanish when you pull a new
+one. `conf/modules.txt` is the list of third-party modules the container
+installs on every start when they are missing, one per line (`#` starts a
+comment):
 
-1. Scan `modules/third/` for any installed `.so` files and automatically check against `modules.txt`
-2. Install any modules listed in `modules.txt` that are not yet compiled
-
-This means you need to edit `modules.txt` manually to add or remove a module that you want to install/remove, one module per line like:
 ```
-# Add the third party modules that you'd  like to keep on your server, so they
-# are recompiled every time the image is updated. One module per line.
 third/ojoin
 third/clearlist
 ```
@@ -79,12 +87,13 @@ docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module i
 
 The `-u unrealircd` flag is required — UnrealIRCd refuses to run as root.
 
-On next restart, the module is automatically checked if it exists on `modules.txt` and will be recompiled.
+Then add the module to `conf/modules.txt` so it comes back after an image
+update, and load it from `unrealircd.conf` as usual.
 
 ### Removing a module
 
-1. Delete its line from `modules.txt`
-2. Restart the container
+1. Remove its `loadmodule` line from `unrealircd.conf` and its line from `conf/modules.txt`
+2. Restart the container, or pull a new image: anything not listed is not reinstalled
 
 ## Common commands
 
@@ -138,4 +147,5 @@ docker compose build
 - Builds for `linux/amd64`.
 - Runs as a non-root user (`unrealircd`).
 - Uses `tini` as PID 1 for correct signal handling and zombie reaping.
+- The compose healthcheck runs `unrealircd status`, which asks the daemon over its control socket.
 - The `-F` flag keeps UnrealIRCd in the foreground as required by Docker.

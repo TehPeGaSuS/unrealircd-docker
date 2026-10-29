@@ -6,7 +6,9 @@
 FROM debian:12-slim AS builder
 
 ARG BRANCH=unreal60_dev
-ARG BASEPATH=/opt/unrealircd
+# Exact upstream commit to build. The CI passes the current tip of BRANCH so
+# the clone layer is never served from cache; empty means "tip of BRANCH".
+ARG UPSTREAM_SHA=
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -23,35 +25,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-RUN git clone --branch ${BRANCH} --depth 1 \
-    https://github.com/unrealircd/unrealircd.git src
+RUN git init -q src \
+  && cd src \
+  && git remote add origin https://github.com/unrealircd/unrealircd.git \
+  && git fetch -q --depth 1 origin "${UPSTREAM_SHA:-${BRANCH}}" \
+  && git checkout -q FETCH_HEAD \
+  && git rev-parse HEAD > /build/UPSTREAM_SHA
 
 WORKDIR /build/src
 
-RUN cat > config.settings <<SETTINGS
-BASEPATH=${BASEPATH}
-BINDIR=${BASEPATH}/bin
-DATADIR=${BASEPATH}/data
-CONFDIR=${BASEPATH}/conf
-MODULESDIR=${BASEPATH}/modules
-LOGDIR=${BASEPATH}/logs
-CACHEDIR=${BASEPATH}/cache
-DOCDIR=${BASEPATH}/doc
-TMPDIR=${BASEPATH}/tmp
-PRIVATELIBDIR=${BASEPATH}/lib
-MAXCONNECTIONS_REQUEST="auto"
-NICKNAMEHHISTORYLENGTH="2000"
-GEOIP="classic"
-DEFPERM="0600"
-SSLDIR=""
-REMOTEINC=""
-CURLDIR=""
-NOOPEROVERRIDE=""
-OPEROVERRIDEVERIFY=""
-GENCERTIFICATE="0"
-EXTRAPARA=""
-ADVANCED=""
-SETTINGS
+# Answers for ./Config -quick (paths under /opt/unrealircd)
+COPY config.settings ./config.settings
 
 ENV CFLAGS="-O2 -march=x86-64"
 
@@ -77,7 +61,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     tini \
     gosu \
-    netcat-openbsd \
     # Required for 'unrealircd module install' at runtime
     build-essential \
     pkg-config \
@@ -94,12 +77,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && ln -sf /usr/bin/make /usr/local/bin/gmake
 
 COPY --from=builder ${BASEPATH} ${BASEPATH}
+COPY --from=builder /build/UPSTREAM_SHA ${BASEPATH}/UPSTREAM_SHA
 # Source tree is required by the module manager to compile modules
 COPY --from=builder /build/src /build/src
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Save defaults before VOLUME wipes the layer, then fix ownership
-RUN useradd -r -d ${BASEPATH} -s /sbin/nologin unrealircd \
+RUN useradd -r -d ${BASEPATH} -s /usr/sbin/nologin unrealircd \
   && cp -r ${BASEPATH}/conf ${BASEPATH}/conf.defaults \
   && chown -R unrealircd:unrealircd ${BASEPATH} /build/src \
   && chmod +x /usr/local/bin/docker-entrypoint.sh

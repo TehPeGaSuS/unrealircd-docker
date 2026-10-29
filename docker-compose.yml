@@ -19,7 +19,6 @@ services:
       - ./conf:/opt/unrealircd/conf
       - ./data:/opt/unrealircd/data
       - ./logs:/opt/unrealircd/logs
-      - ./modules.txt:/opt/unrealircd/modules.txt:ro
 
     ulimits:
       nofile:
@@ -27,7 +26,8 @@ services:
         hard: 65535
 
     healthcheck:
-      test: ["CMD-SHELL", "echo -e 'QUIT\\r' | nc -w 3 127.0.0.1 6667 | grep -qi 'irc\\|ERROR'"]
+      # Asks the daemon over its control socket; exit 0 only when it answers.
+      test: ["CMD", "gosu", "unrealircd", "/opt/unrealircd/unrealircd", "status"]
       interval: 30s
       timeout: 10s
       retries: 3
