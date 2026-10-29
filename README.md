@@ -65,73 +65,71 @@ Mount all three from the host so they survive image updates.
 
 ## Ports
 
-Configured via `network_mode: host` — see [Networking](#networking) below. Define your listeners directly in `unrealircd.conf`.
-
-## Third-party modules
-
-Compiled modules live inside the image, so they vanish when you pull a new
-one. `conf/modules.txt` is the list of third-party modules the container
-installs on every start when they are missing, one per line (`#` starts a
-comment):
-
-```
-third/ojoin
-third/clearlist
-```
-
-### Installing a module
-
-```bash
-docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module install third/ojoin
-```
-
-The `-u unrealircd` flag is required — UnrealIRCd refuses to run as root.
-
-Then add the module to `conf/modules.txt` so it comes back after an image
-update, and load it from `unrealircd.conf` as usual.
-
-### Removing a module
-
-1. Remove its `loadmodule` line from `unrealircd.conf` and its line from `conf/modules.txt`
-2. Restart the container, or pull a new image: anything not listed is not reinstalled
-
-## Common commands
-
-All commands require `-u unrealircd` when using `docker compose exec`.
-
-```bash
-# Test configuration
-docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd configtest
-
-# Rehash (reload config)
-docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd rehash
-
-# Reload TLS certificates
-docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd reloadtls
-
-# Install a third-party module
-docker compose exec -u unrealircd unrealircd /opt/unrealircd/unrealircd module install third/ojoin
-
-# Generate cloak keys
-docker compose run --rm unrealircd /opt/unrealircd/unrealircd gencloak
-```
+The compose file uses `network_mode: host`, so there is no `ports:` section:
+every `listen` block in `unrealircd.conf` is live on the host's addresses,
+exactly as with a native install.
 
 ## Networking
 
-This image uses `network_mode: host` by default. This is intentional and important.
+### Host networking (default)
 
-Without host networking, Docker routes all incoming connections through its internal bridge network, which means UnrealIRCd sees every user connecting from the Docker gateway IP (typically `172.17.0.1`) instead of their real IP address. This breaks:
+With `network_mode: host` the container shares the host's network stack.
+UnrealIRCd binds the host's IPv4 and IPv6 addresses directly, sees every
+client's real address, and nothing depends on Docker's NAT or on which
+Docker version handles IPv6 how. This is the right default for a public IRC
+server on a typical VPS with one IPv4 and an on-link /64.
 
-- IP-based bans and K-Lines
-- Cloaking (all users get the same cloak)
-- Throttling and connection limits per host
-- Geolocation and reputation tracking
+What you give up is only the network namespace: the container can reach
+services bound to the host's `127.0.0.1`, and it competes with the host for
+ports. Filesystem, process and user isolation are unchanged, and the exposure
+is the same as running UnrealIRCd natively under its own user.
 
-With `network_mode: host`, the container shares the host's network stack directly, so UnrealIRCd sees real client IPs as if it were running natively. The tradeoff is that Docker's network isolation is bypassed, but for a public-facing IRC server this is the correct tradeoff.
+> **Note:** `network_mode: host` only works on Linux. On Docker Desktop
+> (macOS/Windows) use the bridge setup below.
 
-Since ports are exposed directly from the host with host networking, the `ports:` section is not needed — configure your listeners directly in `unrealircd.conf`.
+### Bridge networking (alternative)
 
-> **Note:** `network_mode: host` only works on Linux. On Docker Desktop (macOS/Windows) you will need to use `ports:` mapping instead and accept that client IPs will not be accurate.
+If you prefer the extra isolation, replace `network_mode: host` with:
+
+```yaml
+    ports:
+      - "6667:6667"
+      - "6697:6697"
+    networks:
+      - irc
+```
+
+and add at the end of the file:
+
+```yaml
+networks:
+  irc:
+    enable_ipv6: true
+```
+
+Docker forwards published ports with iptables/ip6tables NAT, which preserves
+the client's address for both IPv4 and IPv6 (clients are NATed from a private
+IPv6 range, so no public prefix is needed for the containers). This requires
+Docker 27 or newer, where `ip6tables` is on by default.
+
+Clients appearing to come from the Docker gateway (e.g. `172.18.0.1`) means
+Docker's *userland proxy* handled the connection, which happens for IPv6 on
+older Docker and for connections from the host itself. Disable the fallback in
+`/etc/docker/daemon.json` and restart Docker so misconfigurations fail loudly
+instead of hiding IPs:
+
+```json
+{
+  "userland-proxy": false
+}
+```
+
+### Why not a proxy in front?
+
+A reverse or TCP proxy does **not** help: UnrealIRCd has no PROXY-protocol
+support, so everything would appear to come from the proxy. Its `proxy` block
+only covers WEBIRC gateways and HTTP `Forwarded`/`X-Forwarded-For` headers
+for websocket reverse proxies.
 
 ## Building locally
 
