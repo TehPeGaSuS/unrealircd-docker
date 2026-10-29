@@ -28,9 +28,12 @@ jobs:
           # Current tip of the tracked branch. It is passed to the build as
           # UPSTREAM_SHA so the clone layer is not served from cache, and it
           # becomes the image tag.
-          SHA=$(curl -sf -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/unrealircd/unrealircd/commits/${BRANCH}" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+          # git ls-remote needs no API token and has no rate limit.
+          SHA=$(git ls-remote https://github.com/unrealircd/unrealircd.git "refs/heads/${BRANCH}" | cut -f1)
+          if [ -z "$SHA" ]; then
+            echo "::error::Could not resolve upstream ${BRANCH}"
+            exit 1
+          fi
           echo "upstream_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "upstream_short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "Upstream ${BRANCH} is at $SHA"
@@ -42,7 +45,9 @@ jobs:
           fi
 
           # On schedule, build only if that commit is not published yet.
-          if docker manifest inspect "${REGISTRY}/${IMAGE_NAME}:${SHA:0:7}" >/dev/null 2>&1; then
+          # Registry paths must be lowercase (the repo owner is mixed case).
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}"
+          if docker manifest inspect "${IMAGE}:${SHA:0:7}" >/dev/null 2>&1; then
             echo "Image for $SHA already published — skipping build"
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
