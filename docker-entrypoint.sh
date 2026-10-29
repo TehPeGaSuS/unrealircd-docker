@@ -75,17 +75,22 @@ if [ -n "$SEEDED" ]; then
 fi
 
 # Install any third-party modules listed in modules.txt that are not
-# compiled yet (e.g. after an image update).
-while IFS= read -r mod || [ -n "$mod" ]; do
-    mod=${mod%%#*}
-    mod=$(printf '%s' "$mod" | tr -d '[:space:]')
-    [ -n "$mod" ] || continue
-    if [ ! -f "$BASEPATH/modules/${mod}.so" ]; then
-        echo "Installing missing module: $mod"
-        gosu unrealircd $BASEPATH/unrealircd module install "$mod" || \
-            echo "WARNING: Failed to install module $mod"
-    fi
-done < "$MODULES_LIST"
+# compiled yet (e.g. after an image update). Only when starting the server:
+# one-off commands such as "unrealircd mkpasswd" run straight away.
+case "$1" in
+    */bin/unrealircd)
+        while IFS= read -r mod || [ -n "$mod" ]; do
+            mod=${mod%%#*}
+            mod=$(printf '%s' "$mod" | tr -d '[:space:]')
+            [ -n "$mod" ] || continue
+            if [ ! -f "$BASEPATH/modules/${mod}.so" ]; then
+                echo "Installing missing module: $mod"
+                gosu unrealircd $BASEPATH/unrealircd module install "$mod" || \
+                    echo "WARNING: Failed to install module $mod"
+            fi
+        done < "$MODULES_LIST"
+        ;;
+esac
 
 # Drop to unrealircd user for the actual process
 exec gosu unrealircd "$@"
