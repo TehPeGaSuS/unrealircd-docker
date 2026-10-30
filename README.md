@@ -8,8 +8,8 @@ fetched from the official UnrealIRCd repository at build time.
 
 > [!TIP]
 > This image was tested on Ubuntu 26.04 without any issues: first run, TLS,
-> cloaking, real client IPs with host networking, third-party modules and
-> restarts. If it fails on your machine, please
+> cloaking, real client IPs (IPv4 and IPv6) with both host and bridge
+> networking, third-party modules and restarts. If it fails on your machine, please
 > [open an issue](https://github.com/TehPeGaSuS/unrealircd-docker/issues) with
 > your distro, Docker version and the output of `docker compose logs`.
 
