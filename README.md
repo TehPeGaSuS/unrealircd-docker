@@ -163,20 +163,31 @@ The first run generates a self-signed `conf/tls/server.cert.pem` valid for
 10 years. Keep it for server links: pin it with `spkifp` in the other
 server's link block (see Common commands) and it never needs renewing.
 
-For clients, use a Let's Encrypt certificate on the client listeners only,
-as UnrealIRCd recommends:
+For clients, use a Let's Encrypt certificate. Since UnrealIRCd 6.2.6 (this
+image builds a newer dev version) two `set` settings are enough, as in the
+[upstream guide](https://www.unrealircd.org/docs/Using_Let%27s_Encrypt_with_UnrealIRCd#UnrealIRCd_6.2.6_and_later);
+the seeded `unrealircd.conf` already contains this block, commented out:
 
 ```
-listen {
-    ip *;
-    port 6697;
-    options { tls; clientsonly; }
-    tls-options {
+set {
+    tls {
         certificate "tls/letsencrypt/fullchain.pem";
         key "tls/letsencrypt/privkey.pem";
     }
+    server-linking {
+        tls-options {
+            certificate "tls/server.cert.pem";
+            key "tls/server.key.pem";
+        }
+    }
 }
 ```
+
+`set::tls` covers client listeners. `set::server-linking::tls-options` is
+used automatically for all `link { }` blocks and `serversonly` listeners, so
+no listen or link block needs its own `tls-options`. The paths differ from the
+upstream guide because the container cannot read the host's
+`/etc/letsencrypt`; the hook below copies the files in.
 
 Get the certificate on the host with certbot (DNS-01 needs no open port), then
 install [`renew-cert.sh`](renew-cert.sh) as a deploy hook. On every renewal

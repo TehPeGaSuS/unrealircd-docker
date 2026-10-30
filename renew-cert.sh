@@ -6,7 +6,7 @@
 # makes UnrealIRCd reload it. The default conf/tls/server.cert.pem and
 # server.key.pem are never touched, so the SPKI fingerprint used in link
 # blocks (spkifp) stays the same across renewals. See README "TLS
-# certificates" for the matching listen block.
+# certificates" for the matching set block.
 #
 # NOTE: This script was made to work with certbot. It is not guaranteed to
 #       work with other ACME clients.
