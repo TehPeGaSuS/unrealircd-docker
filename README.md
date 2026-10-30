@@ -196,15 +196,20 @@ networks:
 ```
 
 Docker forwards published ports with iptables/ip6tables NAT, which preserves
-the client's address for both IPv4 and IPv6 (clients are NATed from a private
-IPv6 range, so no public prefix is needed for the containers). This requires
-Docker 27 or newer, where `ip6tables` is on by default.
+the client's address for both IPv4 and IPv6 (the container gets an address
+from a private IPv6 range, so no public prefix is needed). This requires
+Docker 27 or newer, where `ip6tables` is on by default. Tested with real
+client IPs over LAN IPv4, external IPv4 (router port forward) and external
+IPv6.
+
+Use listeners with `ip *;` in bridge mode: the container does not have the
+host's addresses, so a listener bound to one of them fails.
 
 Clients appearing to come from the Docker gateway (e.g. `172.18.0.1`) means
 Docker's *userland proxy* handled the connection, which happens for IPv6 on
-older Docker and for connections from the host itself. Disable the fallback in
-`/etc/docker/daemon.json` and restart Docker so misconfigurations fail loudly
-instead of hiding IPs:
+older Docker and for connections from the host itself. We recommend disabling
+it in `/etc/docker/daemon.json` and restarting Docker (this restarts all
+containers), so misconfigurations fail loudly instead of hiding IPs:
 
 ```json
 {
