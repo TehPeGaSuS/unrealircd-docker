@@ -8,7 +8,7 @@ fetched from the official UnrealIRCd repository at build time.
 
 > [!TIP]
 > This image was tested on Ubuntu 26.04 without any issues: first run, TLS,
-> cloaking, real client IPs (IPv4 and IPv6) with both host and bridge
+> cloaking, real client IPs (IPv4 and IPv6) with host, bridge and routed IPv6
 > networking, third-party modules and restarts. If it fails on your machine, please
 > [open an issue](https://github.com/TehPeGaSuS/unrealircd-docker/issues) with
 > your distro, Docker version and the output of `docker compose logs`.
@@ -216,6 +216,48 @@ containers), so misconfigurations fail loudly instead of hiding IPs:
   "userland-proxy": false
 }
 ```
+
+### Routed IPv6 (own public address)
+
+If your provider routes an IPv6 prefix to the host (a spare /64 from a home
+router with several prefixes, or a block routed to a VPS), the container can
+have its own public IPv6 address with no NAT at all. Create the network once,
+using a prefix that is not configured on any host interface:
+
+```sh
+docker network create --ipv6 --subnet 2001:db8:1:2::/64 \
+  -o com.docker.network.bridge.gateway_mode_ipv6=routed pubv6
+```
+
+Then use it instead of the bridge network:
+
+```yaml
+    ports:
+      - "6667:6667"
+      - "6697:6697"
+    networks:
+      pubv6:
+        ipv6_address: 2001:db8:1:2::6667
+```
+
+and at the end of the file:
+
+```yaml
+networks:
+  pubv6:
+    external: true
+```
+
+IPv6 clients connect straight to the container's address. IPv4 still works
+through the host's published ports, as with bridge networking (Docker adds a
+private IPv4 subnet to the network). Only published ports are reachable on the
+routed address. Point your AAAA record at that address; outgoing server links
+also use it.
+
+The prefix must be *routed* to the host (the router sends it to the host's
+address), not just on-link on the LAN; otherwise the router cannot reach the
+container without an NDP proxy. Tested with real client IPs over external IPv6
+and IPv4.
 
 ### Why not a proxy in front?
 
