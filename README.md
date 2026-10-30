@@ -255,9 +255,11 @@ routed address. Point your AAAA record at that address; outgoing server links
 also use it.
 
 The prefix must be *routed* to the host (the router sends it to the host's
-address), not just on-link on the LAN; otherwise the router cannot reach the
-container without an NDP proxy. Tested with real client IPs over external IPv6
-and IPv4.
+address as next hop) and must not be on-link anywhere: not announced on the
+LAN by the router, and not assigned to a host interface. If the host also has
+an address from that prefix (e.g. `2001:db8:1:2::1/64` on `eth0`), the
+kernel treats the prefix as local to that interface and the container is
+unreachable. Tested with real client IPs over external IPv6 and IPv4.
 
 ### Why not a proxy in front?
 
