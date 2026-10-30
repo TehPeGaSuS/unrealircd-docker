@@ -157,6 +157,47 @@ docker compose run --rm unrealircd /opt/unrealircd/unrealircd gencloak
 without `conf/unrealircd.conf` it seeds the configuration and exits instead of
 running your command.
 
+## TLS certificates
+
+The first run generates a self-signed `conf/tls/server.cert.pem` valid for
+10 years. Keep it for server links: pin it with `spkifp` in the other
+server's link block (see Common commands) and it never needs renewing.
+
+For clients, use a Let's Encrypt certificate on the client listeners only,
+as UnrealIRCd recommends:
+
+```
+listen {
+    ip *;
+    port 6697;
+    options { tls; clientsonly; }
+    tls-options {
+        certificate "tls/letsencrypt/fullchain.pem";
+        key "tls/letsencrypt/privkey.pem";
+    }
+}
+```
+
+Get the certificate on the host with certbot (DNS-01 needs no open port), then
+install [`renew-cert.sh`](renew-cert.sh) as a deploy hook. On every renewal
+it copies the new files into `conf/tls/letsencrypt/`, fixes their ownership
+and runs `reloadtls`, without touching `server.*.pem`:
+
+```sh
+sudo curl -o /etc/letsencrypt/renewal-hooks/deploy/renew-cert.sh \
+  https://raw.githubusercontent.com/TehPeGaSuS/unrealircd-docker/main/renew-cert.sh
+sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/renew-cert.sh
+sudo nano /etc/letsencrypt/renewal-hooks/deploy/renew-cert.sh   # subdomain, container, path
+```
+
+To run it once without waiting for a renewal:
+
+```sh
+sudo certbot renew --force-renewal --cert-name irc.example.org
+```
+
+(Let's Encrypt rate-limits duplicate certificates, so don't repeat that often.)
+
 ## Networking
 
 ### Host networking (default)
