@@ -3,6 +3,8 @@ name: Build and publish Docker image
 on:
   push:
     branches: ["main"]
+    # Docs-only commits do not change the image
+    paths-ignore: ["**.md"]
   schedule:
     # Check daily at 04:00 UTC for upstream commits
     - cron: "0 4 * * *"
